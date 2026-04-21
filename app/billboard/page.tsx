@@ -10,7 +10,7 @@ export default function BillboardPage() {
 
   const fetchSignal = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/videos/billboard/active`);
+      const res = await fetch(`https://wajeehaaa-digitalbillboard.hf.space/videos/billboard/active`);
       if (!res.ok) throw new Error("SIGNAL_INTERRUPTED");
       const data = await res.json();
       setActiveAds(data);
