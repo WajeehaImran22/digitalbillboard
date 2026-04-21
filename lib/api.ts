@@ -1,18 +1,24 @@
 /**
  * AXIOM TERMINAL // API ARCHITECTURE
- * Unified interface for backend communication.
+ * Unified interface for backend communication and token management.
  */
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || "https://hammad712-digitalbillboard.hf.space") as string;
-
+// Use the environment variable for production (Vercel) or fallback to local
+const API_URL = (process.env.NEXT_PUBLIC_API_URL || "https://wajeehaaa-digitalbillboard.hf.space") as string;
 const TOKEN_KEY = 'access_token';
 
+/**
+ * Persists the JWT token to local storage
+ */
 export const setToken = (token: string) => {
   if (typeof window !== 'undefined' && token) {
     localStorage.setItem(TOKEN_KEY, token);
   }
 };
 
+/**
+ * Retrieves the current token, filtering out invalid string states
+ */
 export const getToken = () => {
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem(TOKEN_KEY);
@@ -22,6 +28,30 @@ export const getToken = () => {
   return null;
 };
 
+/**
+ * Protocol: URL Token Capture
+ * Use this in your Dashboard's useEffect to grab the token passed by the backend redirect.
+ */
+export const syncTokenFromUrl = () => {
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash;
+    if (hash && hash.includes('access_token=')) {
+      const params = new URLSearchParams(hash.replace('#', '?'));
+      const token = params.get('access_token');
+      if (token) {
+        setToken(token);
+        // Clean the URL hash for a professional UI and security
+        window.history.replaceState({}, document.title, window.location.pathname);
+        return token;
+      }
+    }
+  }
+  return null;
+};
+
+/**
+ * Wipes local session and returns user to the gate
+ */
 export const logout = () => {
   if (typeof window !== 'undefined') {
     localStorage.removeItem(TOKEN_KEY);
@@ -30,21 +60,25 @@ export const logout = () => {
 };
 
 /**
- * Enhanced fetch wrapper with automatic Authorization header injection.
+ * Enhanced fetch wrapper with automatic Authorization injection.
+ * Handles Bearer tokens and cross-site credential requirements.
  */
 async function fetchWithAuth(endpoint: string, options: RequestInit = {}, isBlob = false) {
   const token = getToken();
   
+  // URL Normalization
   const cleanBase = API_URL.endsWith('/') ? API_URL.slice(0, -1) : API_URL;
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${cleanBase}${cleanEndpoint}`;
 
   const headers = new Headers(options.headers || {});
 
+  // Set JSON content-type unless we are sending FormData (uploads)
   if (!(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
+  // Inject Bearer Token if available
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -52,6 +86,7 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}, isBlob
   const response = await fetch(url, { 
     ...options, 
     headers,
+    // Critical for cross-domain cookie support if used
     credentials: 'include' 
   });
 
@@ -60,7 +95,16 @@ async function fetchWithAuth(endpoint: string, options: RequestInit = {}, isBlob
     try {
       const errorData = await response.json();
       errorMessage = errorData.detail || errorMessage;
-    } catch (e) {}
+    } catch (e) {
+      // Fallback for non-JSON error responses
+    }
+    
+    // Auto-logout if unauthorized (Session Expired)
+    if (response.status === 401) {
+      console.warn("Session expired or invalid. Re-authenticating...");
+      // logout(); // Uncomment this once production testing is finalized
+    }
+    
     throw new Error(errorMessage);
   }
 
@@ -96,7 +140,6 @@ export interface VideoGenerateResponse {
 // --- API Modules ---
 
 export const authAPI = {
-  // RESTORED METHODS:
   login: (credentials: Record<string, string>): Promise<any> => 
     fetchWithAuth('/auth/login', { method: 'POST', body: JSON.stringify(credentials) }),
     
@@ -169,5 +212,5 @@ export const videoAPI = {
 
 export const billboardAPI = {
   getActiveAd: (): Promise<any> => 
-    fetchWithAuth('/billboard/active', { method: 'GET' }), // Updated to match public route
+    fetchWithAuth('/billboard/active', { method: 'GET' }),
 };

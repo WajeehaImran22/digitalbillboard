@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { adAPI, mediaAPI, profileAPI, videoAPI, setToken, logout } from '@/lib/api';
+import { adAPI, mediaAPI, profileAPI, videoAPI, syncTokenFromUrl, logout } from '@/lib/api';
 import { 
   Zap, 
   Play, 
@@ -32,23 +32,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     // 1. THE TOKEN CATCHER
-    // Extract the token from the URL query string or hash
-    const urlParams = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    
-    const token = urlParams.get('token') || urlParams.get('access_token') || hashParams.get('access_token');
-
-    if (token) {
-      /**
-       * CRITICAL FIX:
-       * We use setToken(token) which saves it as 'access_token'.
-       * This matches what lib/api.ts and the Schedule page expect.
-       */
-      setToken(token);
-      
-      // Clean up the URL so the user doesn't see a massive string in their browser
-      window.history.replaceState(null, '', window.location.pathname);
-    }
+    // Use the centralized sync function from api.ts to grab the token from the Google redirect
+    syncTokenFromUrl();
 
     // 2. Now that the token is safely stored, load the session data
     loadInitialData();
@@ -64,7 +49,7 @@ export default function Dashboard() {
       
       setIsCheckingAuth(false);
     } catch (err) {
-      // If unauthorized, redirect to login
+      // If unauthorized (or token missing/invalid), redirect to login
       router.push('/auth');
     }
   };
@@ -136,7 +121,7 @@ export default function Dashboard() {
       setErrorMessage(err.message || "Upload failed due to a system error.");
     } finally {
       setIsLoading(false);
-      e.target.value = '';
+      e.target.value = ''; // Reset input
     }
   };
 
